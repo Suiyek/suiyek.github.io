@@ -174,19 +174,28 @@
   <div class="row mx-auto index-card">
     
     
-    <article class="col-12 col-md-12 mx-auto index-info">
+      <div class="col-12 col-md-4 m-auto index-img">
+        <a href="/2020/10/10/C++/Tools/ASAN/" target="_self">
+          <img src="/img/asan.jpg" srcset="/img/loading.gif" alt="AddressSanitizer —— ASAN分析内存错误">
+        </a>
+      </div>
+    
+    <article class="col-12 col-md-8 mx-auto index-info">
       <h1 class="index-header">
-        <a href="/2020/10/04/hello-world/">Hello World</a>
+        <a href="/2020/10/10/C++/Tools/ASAN/">AddressSanitizer —— ASAN分析内存错误</a>
       </h1>
 
       <p class="index-excerpt">
-        <a href="/2020/10/04/hello-world/">
+        <a href="/2020/10/10/C++/Tools/ASAN/">
           
           
             
           
-          Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
-Quick
+          简介AddressSanitizer 是一个性能非常好的C/C++ 内存错误探测工具。它由编译器的插桩模块和替换了malloc函数的运行时库组成。这个工具可以探测如下这些类型的错误：
+
+对堆、栈和全局内存的访问越界(堆缓冲区溢出，栈缓冲区溢出，和全局缓冲区溢出)
+UAP(Use-after-free，悬挂指针的解引用，或者说野指针)
+Use-after-return(无效的栈上内存，运行时标记 A
         </a>
       </p>
 
@@ -194,12 +203,32 @@ Quick
         
           <div class="post-meta mr-3">
             <i class="iconfont icon-date"></i>
-            <time datetime="2020-10-04 14:07" pubdate>
-              2020-10-04
+            <time datetime="2020-10-10 00:25" pubdate>
+              2020-10-10
             </time>
           </div>
         
         
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/C/">C++</a>
+            
+              <a href="/categories/C/Tools/">Tools</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/C/">C++</a>
+            
+              <a href="/tags/ASAN/">ASAN</a>
+            
+              <a href="/tags/%E5%86%85%E5%AD%98%E8%B6%8A%E7%95%8C/">内存越界</a>
+            
+          </div>
         
       </div>
     </article>

@@ -1,0 +1,620 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="">
+  <meta name="author" content="Suiyek">
+  <meta name="keywords" content="">
+  <title>AddressSanitizer —— ASAN分析内存错误 - Suiyek&#39;s Blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.4.1/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/github-markdown-css/4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    <link  rel="stylesheet" href="https://cdn.staticfile.org/highlight.js/10.0.0/styles/vs2015.min.css" />
+  
+
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_6peoq002giu.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_pjno9b9zyxs.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.0.2"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>Suiyek's Blog</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" href="javascript:">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner intro-2" id="background" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="container page-header text-center fade-in-up">
+            <span class="h2" id="subtitle">
+              
+            </span>
+
+            
+              
+  <div class="mt-3 post-meta">
+    <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+    <time datetime="2020-10-10 00:25" pubdate>
+      2020年10月10日 凌晨
+    </time>
+  </div>
+
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      1.1k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      16
+       分钟
+    </span>
+  
+
+  
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-md">
+      <div class="container nopadding-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto" id="post">
+            <!-- SEO header -->
+            <h1 style="display: none">AddressSanitizer —— ASAN分析内存错误</h1>
+            
+            <div class="markdown-body" id="post-body">
+              <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p><code>AddressSanitizer</code> 是一个性能非常好的<code>C/C++</code> 内存错误探测工具。<br>它由编译器的插桩模块和替换了<code>malloc</code>函数的运行时库组成。<br>这个工具可以探测如下这些类型的错误：</p>
+<ul>
+<li>对堆、栈和全局内存的访问越界(堆缓冲区溢出，栈缓冲区溢出，和全局缓冲区溢出)</li>
+<li>UAP(Use-after-free，悬挂指针的解引用，或者说野指针)</li>
+<li>Use-after-return(无效的栈上内存，运行时标记 <code>ASAN_OPTIONS=detect_stack_use_after_return=1</code>)</li>
+<li>Use-After-Scope (作用域外访问，<code>clang</code>标记<code>-fsanitize-address-use-after-scope</code>)</li>
+<li>内存的重复释放 (double-free)</li>
+<li>初始化顺序的BUG</li>
+<li>内存泄漏 (memory leak)</li>
+</ul>
+<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>以<code>CentOS7</code>环境下编译器<code>gcc 4.8.5</code>为例 (版本支持: <code>gcc version</code> &gt; 4.8)</p>
+<ol>
+<li>安装对应系统版本和<code>gcc</code>版本的<code>libasan</code> (搜索<code>libasan</code>相关包: <a target="_blank" rel="noopener" href="https://pkgs.org/search/?q=libasan">pkgs.org</a>):<div class="hljs"><pre><code class="hljs apache"><span class="hljs-attribute">wget</span> http://mirror.centos.org/centos/<span class="hljs-number">7</span>/os/x<span class="hljs-number">86</span>_<span class="hljs-number">64</span>/Packages/libasan-<span class="hljs-number">4</span>.<span class="hljs-number">8</span>.<span class="hljs-number">5</span>-<span class="hljs-number">39</span>.el<span class="hljs-number">7</span>.x<span class="hljs-number">86</span>_<span class="hljs-number">64</span>.rpm
+<span class="hljs-attribute">yum</span> install -y libasan-<span class="hljs-number">4</span>.<span class="hljs-number">8</span>.<span class="hljs-number">5</span>-<span class="hljs-number">39</span>.el<span class="hljs-number">7</span>.x<span class="hljs-number">86</span>_<span class="hljs-number">64</span>.rpm</code></pre></div></li>
+<li>编译源码的时候只需要加上以下编译参数即可：<div class="hljs"><pre><code class="hljs ini"><span class="hljs-attr">-fsanitize</span>=address -f<span class="hljs-literal">no</span>-omit-frame-pointer -g</code></pre></div></li>
+<li>若项目是以<code>CMake</code>作为构建工具, 可按如下做法修改:<div class="hljs"><pre><code class="hljs stylus"><span class="hljs-function"><span class="hljs-title">add_definitions</span><span class="hljs-params">(<span class="hljs-string">&quot;-fsanitize=address -fno-omit-frame-pointer -lasan&quot;</span>)</span></span>
+<span class="hljs-function"><span class="hljs-title">set</span><span class="hljs-params">(CMAKE_CXX_FLAGS <span class="hljs-string">&quot;$&#123;CMAKE_CXX_FLAGS&#125; -fsanitize=address -fno-omit-frame-pointer -lasan&quot;</span>)</span></span>
+<span class="hljs-function"><span class="hljs-title">set</span><span class="hljs-params">(CMAKE_C_FLAGS <span class="hljs-string">&quot;$&#123;CMAKE_C_FLAGS&#125; -fsanitize=address -fno-omit-frame-pointer -lasan&quot;</span>)</span></span>
+<span class="hljs-function"><span class="hljs-title">set</span><span class="hljs-params">(CMAKE_EXE_LINKER_FLAGS <span class="hljs-string">&quot;$&#123;CMAKE_EXE_LINKER_FLAGS&#125; -fsanitize=address -fno-omit-frame-pointer -lasan&quot;</span>)</span></span>
+<span class="hljs-function"><span class="hljs-title">set</span><span class="hljs-params">(CMAKE_MODULE_LINKER_FLAGS <span class="hljs-string">&quot;$&#123;CMAKE_MODULE_LINKER_FLAGS&#125; -fsanitize=address -fno-omit-frame-pointer -lasan&quot;</span>)</span></span></code></pre></div>
+
+</li>
+</ol>
+<h2 id="测试例子"><a href="#测试例子" class="headerlink" title="测试例子"></a>测试例子</h2><p>源码:</p>
+<div class="hljs"><pre><code class="hljs c++"><span class="hljs-meta">#<span class="hljs-meta-keyword">include</span> <span class="hljs-meta-string">&lt;iostream&gt;</span></span>
+
+<span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">main</span><span class="hljs-params">(<span class="hljs-keyword">int</span> argc, <span class="hljs-keyword">char</span>** argv)</span></span>
+<span class="hljs-function"></span>&#123;
+    <span class="hljs-keyword">int</span> a[<span class="hljs-number">5</span>];
+    <span class="hljs-keyword">int</span> index=<span class="hljs-number">6</span>;
+    <span class="hljs-keyword">int</span> retval=a[index];
+    <span class="hljs-built_in">std</span>::<span class="hljs-built_in">cout</span> &lt;&lt; <span class="hljs-string">&quot;Ret :&quot;</span> &lt;&lt; retval &lt;&lt; <span class="hljs-built_in">std</span>::<span class="hljs-built_in">endl</span>;
+    <span class="hljs-keyword">return</span> retval;
+&#125;</code></pre></div>
+
+<p>编译：</p>
+<div class="hljs"><pre><code class="hljs routeros">g++ -g <span class="hljs-attribute">-std</span>=c++11 <span class="hljs-attribute">-fsanitize</span>=address -fno-omit-frame-pointer test.cpp -o test</code></pre></div>
+<p>运行<code>./test</code>后报错：</p>
+<div class="hljs"><pre><code class="hljs yaml"><span class="hljs-string">=================================================================</span>
+<span class="hljs-string">==7708==ERROR:</span> <span class="hljs-attr">AddressSanitizer:</span> <span class="hljs-string">stack-buffer-overflow</span> <span class="hljs-string">on</span> <span class="hljs-string">address</span> <span class="hljs-number">0x7ffc32facb68</span> <span class="hljs-string">at</span> <span class="hljs-string">pc</span> <span class="hljs-number">0x401610</span> <span class="hljs-string">bp</span> <span class="hljs-number">0x7ffc32facae0</span> <span class="hljs-string">sp</span> <span class="hljs-number">0x7ffc32facad0</span>
+<span class="hljs-string">READ</span> <span class="hljs-string">of</span> <span class="hljs-string">size</span> <span class="hljs-number">4</span> <span class="hljs-string">at</span> <span class="hljs-number">0x7ffc32facb68</span> <span class="hljs-string">thread</span> <span class="hljs-string">T0</span>
+    <span class="hljs-comment">#0 0x40160f in main test.cpp:8</span>
+    <span class="hljs-comment">#1 0x7fefe78a8504 in __libc_start_main (/lib64/libc.so.6+0x22504)</span>
+    <span class="hljs-comment">#2 0x401448 (./test+0x401448)</span>
+
+<span class="hljs-string">Address</span> <span class="hljs-number">0x7ffc32facb68</span> <span class="hljs-string">is</span> <span class="hljs-string">located</span> <span class="hljs-string">in</span> <span class="hljs-string">stack</span> <span class="hljs-string">of</span> <span class="hljs-string">thread</span> <span class="hljs-string">T0</span> <span class="hljs-string">at</span> <span class="hljs-string">offset</span> <span class="hljs-number">56</span> <span class="hljs-string">in</span> <span class="hljs-string">frame</span>
+    <span class="hljs-comment">#0 0x401525 in main ./test.cpp:5</span>
+
+  <span class="hljs-string">This</span> <span class="hljs-string">frame</span> <span class="hljs-string">has</span> <span class="hljs-number">2</span> <span class="hljs-string">object(s):</span>
+    [<span class="hljs-number">32</span>, <span class="hljs-number">52</span><span class="hljs-string">)</span> <span class="hljs-string">&#x27;a&#x27;</span> <span class="hljs-string">&lt;==</span> <span class="hljs-string">Memory</span> <span class="hljs-string">access</span> <span class="hljs-string">at</span> <span class="hljs-string">offset</span> <span class="hljs-number">56</span> <span class="hljs-string">overflows</span> <span class="hljs-string">this</span> <span class="hljs-string">variable</span>
+    [<span class="hljs-number">96</span>, <span class="hljs-number">144</span><span class="hljs-string">)</span> <span class="hljs-string">&#x27;m&#x27;</span>
+<span class="hljs-attr">HINT:</span> <span class="hljs-string">this</span> <span class="hljs-string">may</span> <span class="hljs-string">be</span> <span class="hljs-string">a</span> <span class="hljs-literal">false</span> <span class="hljs-string">positive</span> <span class="hljs-string">if</span> <span class="hljs-string">your</span> <span class="hljs-string">program</span> <span class="hljs-string">uses</span> <span class="hljs-string">some</span> <span class="hljs-string">custom</span> <span class="hljs-string">stack</span> <span class="hljs-string">unwind</span> <span class="hljs-string">mechanism</span> <span class="hljs-string">or</span> <span class="hljs-string">swapcontext</span>
+      <span class="hljs-string">(longjmp</span> <span class="hljs-string">and</span> <span class="hljs-string">C++</span> <span class="hljs-string">exceptions</span> <span class="hljs-string">*are*</span> <span class="hljs-string">supported)</span>
+<span class="hljs-attr">SUMMARY: AddressSanitizer:</span> <span class="hljs-string">stack-buffer-overflow</span> <span class="hljs-string">./test.cpp:8</span> <span class="hljs-string">main</span>
+<span class="hljs-attr">Shadow bytes around the buggy address:</span>
+  <span class="hljs-attr">0x1000065ed910:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed920:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed930:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed940:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed950:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+<span class="hljs-string">=&gt;0x1000065ed960:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-string">f1</span> <span class="hljs-string">f1</span> <span class="hljs-string">f1</span> <span class="hljs-string">f1</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">04</span>[<span class="hljs-string">f4</span>]<span class="hljs-string">f2</span> <span class="hljs-string">f2</span>
+  <span class="hljs-attr">0x1000065ed970:</span> <span class="hljs-string">f2</span> <span class="hljs-string">f2</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-string">f4</span> <span class="hljs-string">f4</span> <span class="hljs-string">f3</span> <span class="hljs-string">f3</span> <span class="hljs-string">f3</span> <span class="hljs-string">f3</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed980:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed990:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed9a0:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+  <span class="hljs-attr">0x1000065ed9b0:</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span> <span class="hljs-number">00</span>
+<span class="hljs-string">Shadow</span> <span class="hljs-string">byte</span> <span class="hljs-string">legend</span> <span class="hljs-string">(one</span> <span class="hljs-string">shadow</span> <span class="hljs-string">byte</span> <span class="hljs-string">represents</span> <span class="hljs-number">8</span> <span class="hljs-string">application</span> <span class="hljs-string">bytes):</span>
+  <span class="hljs-attr">Addressable:</span>           <span class="hljs-number">00</span>
+  <span class="hljs-attr">Partially addressable:</span> <span class="hljs-number">01</span> <span class="hljs-number">02</span> <span class="hljs-number">03</span> <span class="hljs-number">04</span> <span class="hljs-number">05</span> <span class="hljs-number">06</span> <span class="hljs-number">07</span>
+  <span class="hljs-attr">Heap left redzone:</span>       <span class="hljs-string">fa</span>
+  <span class="hljs-attr">Heap right redzone:</span>      <span class="hljs-string">fb</span>
+  <span class="hljs-attr">Freed heap region:</span>       <span class="hljs-string">fd</span>
+  <span class="hljs-attr">Stack left redzone:</span>      <span class="hljs-string">f1</span>
+  <span class="hljs-attr">Stack mid redzone:</span>       <span class="hljs-string">f2</span>
+  <span class="hljs-attr">Stack right redzone:</span>     <span class="hljs-string">f3</span>
+  <span class="hljs-attr">Stack partial redzone:</span>   <span class="hljs-string">f4</span>
+  <span class="hljs-attr">Stack after return:</span>      <span class="hljs-string">f5</span>
+  <span class="hljs-attr">Stack use after scope:</span>   <span class="hljs-string">f8</span>
+  <span class="hljs-attr">Global redzone:</span>          <span class="hljs-string">f9</span>
+  <span class="hljs-attr">Global init order:</span>       <span class="hljs-string">f6</span>
+  <span class="hljs-attr">Poisoned by user:</span>        <span class="hljs-string">f7</span>
+  <span class="hljs-string">Contiguous</span> <span class="hljs-string">container</span> <span class="hljs-string">OOB:fc</span>
+  <span class="hljs-attr">ASan internal:</span>           <span class="hljs-string">fe</span>
+<span class="hljs-string">==7708==ABORTING</span></code></pre></div>
+<p>可以看到报错提示<strong>栈缓冲区溢出</strong> <code>ERROR: AddressSanitizer: stack-buffer-overflow</code>, 通过调查源码可以发现程序对栈区内存上的数组<code>a</code>的访问越界了。</p>
+<h2 id="实践经验"><a href="#实践经验" class="headerlink" title="实践经验"></a>实践经验</h2><ul>
+<li>项目的构建方案应当有编译选项可以随时启用/关闭<code>ASAN</code></li>
+<li>项目送测阶段可以打开<code>ASAN</code>以帮助暴露更多的低概率诡异问题</li>
+<li>请勿在生产版本中启用<code>ASAN</code>, 其会降低程序运行速度大概2-5倍 (特殊情况除外)</li>
+<li>实际开发测试过程中通过<code>ASAN</code>扫出的常见问题有:<ul>
+<li>多线程下临界资源未加保护导致同时出现读写访问, 解决方案一般是对该资源恰当地加锁即可</li>
+<li>内存越界, 如申请了N字节的内存却向其内存地址拷贝大于N字节的数据, 这种情况在没有开启ASAN的情况下一般都很难发现</li>
+</ul>
+</li>
+</ul>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/C/">C++</a>
+                    
+                      <a class="hover-with-bg" href="/categories/C/Tools/">Tools</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/C/">C++</a>
+                    
+                      <a class="hover-with-bg" href="/tags/ASAN/">ASAN</a>
+                    
+                      <a class="hover-with-bg" href="/tags/%E5%86%85%E5%AD%98%E8%B6%8A%E7%95%8C/">内存越界</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！</p>
+              
+              
+                <div class="post-prevnext row">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments">
+                
+                
+  <div class="disqus" style="width:100%">
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+      var disqus_config = function () {
+        this.page.url = 'http://suiyek.com/2020/10/10/C++/Tools/ASAN/';
+        this.page.identifier = '/2020/10/10/C++/Tools/ASAN/';
+      };
+      function loadDisqus() {
+        (function () {
+          var d = document,
+            s = d.createElement('script');
+          s.src = '//' + 'suiyek-blog' + '.disqus.com/embed.js';
+          s.setAttribute('data-timestamp', new Date());
+          (d.head || d.body).appendChild(s);
+        })();
+      }
+      waitElementVisible('disqus_thread', loadDisqus);
+    </script>
+    <noscript>Please enable JavaScript to view the
+      <a target="_blank" href="https://disqus.com/?ref_noscript" rel="nofollow noopener noopener">comments powered by Disqus.</a>
+    </noscript>
+  </div>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div id="tocbot"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+  </main>
+
+  
+    <a id="scroll-top-button" href="#" role="button">
+      <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+    </a>
+  
+
+  
+    <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+  
+
+  
+
+  
+
+  <footer class="mt-5">
+  <div class="text-center py-3">
+    <div>
+      <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a>
+      <i class="iconfont icon-love"></i>
+      <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener">
+        <span>Fluid</span></a>
+    </div>
+    
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- 不蒜子统计PV -->
+        <span id="busuanzi_container_site_pv" style="display: none">
+            总访问量 
+            <span id="busuanzi_value_site_pv"></span>
+             次
+          </span>
+      
+      
+        <!-- 不蒜子统计UV -->
+        <span id="busuanzi_container_site_uv" style="display: none">
+            总访客数 
+            <span id="busuanzi_value_site_uv"></span>
+             人
+          </span>
+      
+    
+  </div>
+
+
+    
+
+    
+  </div>
+</footer>
+
+<!-- SCRIPTS -->
+<script  src="https://cdn.staticfile.org/jquery/3.4.1/jquery.min.js" ></script>
+<script  src="https://cdn.staticfile.org/twitter-bootstrap/4.4.1/js/bootstrap.min.js" ></script>
+<script  src="/js/debouncer.js" ></script>
+<script  src="/js/main.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/lazyload.js" ></script>
+  
+
+
+
+  <script defer src="https://cdn.staticfile.org/clipboard.js/2.0.6/clipboard.min.js" ></script>
+  <script  src="/js/clipboard-use.js" ></script>
+
+
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+  <script  src="https://cdn.staticfile.org/tocbot/4.11.1/tocbot.min.js" ></script>
+  <script>
+    $(document).ready(function () {
+      var boardCtn = $('#board-ctn');
+      var boardTop = boardCtn.offset().top;
+
+      tocbot.init({
+        tocSelector: '#tocbot',
+        contentSelector: '#post-body',
+        headingSelector: 'h1,h2,h3,h4,h5,h6',
+        linkClass: 'tocbot-link',
+        activeLinkClass: 'tocbot-active-link',
+        listClass: 'tocbot-list',
+        isCollapsedClass: 'tocbot-is-collapsed',
+        collapsibleClass: 'tocbot-is-collapsible',
+        collapseDepth: 0,
+        scrollSmooth: true,
+        headingsOffset: -boardTop
+      });
+      if ($('.toc-list-item').length > 0) {
+        $('#toc').css('visibility', 'visible');
+      }
+    });
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/typed.js/2.0.11/typed.min.js" ></script>
+  <script>
+    var typed = new Typed('#subtitle', {
+      strings: [
+        '  ',
+        "AddressSanitizer —— ASAN分析内存错误&nbsp;",
+      ],
+      cursorChar: "|",
+      typeSpeed: 70,
+      loop: false,
+    });
+    typed.stop();
+    $(document).ready(function () {
+      $(".typed-cursor").addClass("h2");
+      typed.start();
+    });
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/anchor-js/4.2.2/anchor.min.js" ></script>
+  <script>
+    anchors.options = {
+      placement: "right",
+      visible: "hover",
+      
+    };
+    var el = "h1,h2,h3,h4,h5,h6".split(",");
+    var res = [];
+    for (item of el) {
+      res.push(".markdown-body > " + item)
+    }
+    anchors.add(res.join(", "))
+  </script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+  <script>
+    var path = "/local-search.xml";
+    var inputArea = document.querySelector("#local-search-input");
+    inputArea.onclick = function () {
+      searchFunc(path, 'local-search-input', 'local-search-result');
+      this.onclick = null
+    }
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/fancybox/3.5.7/jquery.fancybox.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+  <script>
+    $('#post img:not(.no-zoom img, img[no-zoom]), img[zoom]').each(
+      function () {
+        var element = document.createElement('a');
+        $(element).attr('data-fancybox', 'images');
+        $(element).attr('href', $(this).attr('src'));
+        $(this).wrap(element);
+      }
+    );
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>
